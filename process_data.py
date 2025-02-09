@@ -212,7 +212,9 @@ def video2img(video_path, img_dir):
         
         success, image = video_capture.read()
         count += 1
-        print("frame: ", count)
+        # print("frame: ", count)
+    print("Number of frames: ", count)
+
 
 
 def mp_main(args):
@@ -250,6 +252,7 @@ def mp_main(args):
             faces = []
             
             idx = 0
+            print("Extracting dwpose from video frames...")
             while videoCapture.isOpened():
                 # get a frame
                 ret, frame = videoCapture.read()
