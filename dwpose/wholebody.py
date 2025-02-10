@@ -10,7 +10,7 @@ class Wholebody:
         device = 'cuda' # 'cpu' #
         providers = ['CPUExecutionProvider'
                   ] if device == 'cpu' else ['CUDAExecutionProvider']
-        providers = ['CPUExecutionProvider']
+        # providers = ['CPUExecutionProvider']
         onnx_det =  'checkpoints/yolox_l.onnx' 
         onnx_pose = 'checkpoints/dw-ll_ucoco_384.onnx'
 
