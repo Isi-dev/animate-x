@@ -29,7 +29,7 @@ cfg.depth_clamp = 10.0
 cfg.misc_size = 384
 cfg.depth_std = 20.0
 
-cfg.save_fps = 8
+cfg.save_fps = 30
 
 cfg.frame_lens = [32, 32, 32, 1]
 cfg.sample_fps = [4, ]
