@@ -295,7 +295,8 @@ def worker(gpu, cfg, cfg_update):
         torch.backends.cudnn.benchmark = True
         if hasattr(cfg, "CPU_CLIP_VAE") and cfg.CPU_CLIP_VAE:
             torch.backends.cudnn.benchmark = False
-        dist.init_process_group(backend='nccl', world_size=cfg.world_size, rank=cfg.rank)
+        if not dist.is_initialized():
+            dist.init_process_group(backend='nccl', world_size=cfg.world_size, rank=cfg.rank)
 
     # [Log] Save logging and make log dir
     log_dir = generalized_all_gather(cfg.log_dir)[0]
@@ -356,7 +357,8 @@ def worker(gpu, cfg, cfg_update):
         cfg.UNet["config"] = cfg
     cfg.UNet["zero_y"] = zero_y
     model = MODEL.build(cfg.UNet)
-    state_dict = torch.load(cfg.test_model, map_location='cpu')
+    # state_dict = torch.load(cfg.test_model, map_location='cpu')
+    state_dict = torch.load(cfg.test_model, map_location=f"cuda:{gpu}")
     if 'state_dict' in state_dict:
         state_dict = state_dict['state_dict']
     if 'step' in state_dict:
@@ -372,6 +374,8 @@ def worker(gpu, cfg, cfg_update):
                 del state_dict[key]
         status = model.load_state_dict(state_dict, strict=False)
     logging.info('Load model from {} with status {}'.format(cfg.test_model, status))
+    del state_dict
+    torch.cuda.empty_cache()
     model = model.to(gpu)
     model.eval()
     if hasattr(cfg, "CPU_CLIP_VAE") and cfg.CPU_CLIP_VAE:
@@ -569,10 +573,18 @@ def worker(gpu, cfg, cfg_update):
                                     use_fps_condition = cfg.use_fps_condition)
                 noise_one = noise
                 
+                # if hasattr(cfg, "CPU_CLIP_VAE") and cfg.CPU_CLIP_VAE:
+                #     clip_encoder.cpu() # add this line
+                #     autoencoder.cpu() # add this line
+                #     torch.cuda.empty_cache() # add this line
+
                 if hasattr(cfg, "CPU_CLIP_VAE") and cfg.CPU_CLIP_VAE:
                     clip_encoder.cpu() # add this line
+                    del clip_encoder  # Delete this object to free memory
                     autoencoder.cpu() # add this line
                     torch.cuda.empty_cache() # add this line
+                    import gc
+                    gc.collect()
                     
                 video_data = diffusion.ddim_sample_loop(
                     noise=noise_one,
@@ -584,10 +596,20 @@ def worker(gpu, cfg, cfg_update):
                 
                 # print("video_data = diffusion.ddim_sample_", video_data.shape) #torch.Size([1, 4, 32, 96, 64])
 
+                # if hasattr(cfg, "CPU_CLIP_VAE") and cfg.CPU_CLIP_VAE:
+                #     # if run forward of  autoencoder or clip_encoder second times, load them again
+                #     clip_encoder.cuda()
+                #     autoencoder.cuda()
+
                 if hasattr(cfg, "CPU_CLIP_VAE") and cfg.CPU_CLIP_VAE:
                     # if run forward of  autoencoder or clip_encoder second times, load them again
-                    clip_encoder.cuda()
+                    # clip_encoder.cuda()
+                    del diffusion
+                    torch.cuda.empty_cache()
+                    gc.collect()
                     autoencoder.cuda()
+
+                
                 video_data = 1. / cfg.scale_factor * video_data 
                 video_data = rearrange(video_data, 'b c f h w -> (b f) c h w')
                 chunk_size = min(cfg.decoder_bs, video_data.shape[0])
